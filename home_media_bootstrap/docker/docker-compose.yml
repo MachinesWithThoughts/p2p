@@ -1,0 +1,34 @@
+version: "3.9"
+
+services:
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    ports:
+      - 8989:8989
+    environment:
+      - PUID=2000
+      - PGID=2000
+      - TZ=America/Chicago
+    volumes:
+      - /mnt/p2p/config/sonarr:/config
+      - /mnt/p2p/apps/sabnzbd/downloads:/downloads
+      - /mnt/p2p/tv2:/tv
+    restart: unless-stopped
+
+  sabnzbd:
+    image: lscr.io/linuxserver/sabnzbd:latest
+    container_name: sabnzbd
+    ports:
+      - 8080:8080
+    environment:
+      - PUID=2000
+      - PGID=2000
+      - TZ=America/Chicago
+    volumes:
+      - /mnt/p2p/config/sabnzbd:/config
+      - /mnt/p2p/apps/sabnzbd/downloads:/downloads
+      - /mnt/p2p/apps/sabnzbd/incomplete:/incomplete
+      - /mnt/p2p/movies:/movies
+      - /mnt/p2p/documents:/documents
+    restart: unless-stopped
