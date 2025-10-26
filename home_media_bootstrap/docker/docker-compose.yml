@@ -11,9 +11,9 @@ services:
       - PGID=2000
       - TZ=America/Chicago
     volumes:
-      - /mnt/p2p/config/sonarr:/config
-      - /mnt/p2p/apps/sabnzbd/downloads:/downloads
-      - /mnt/p2p/tv2:/tv
+      - ${HOST_MEDIA_BASE}/config/sonarr:/config
+      - ${HOST_MEDIA_BASE}/apps/sabnzbd/downloads:/downloads
+      - ${HOST_MEDIA_BASE}/tv2:/tv
     restart: unless-stopped
 
   sabnzbd:
@@ -26,9 +26,9 @@ services:
       - PGID=2000
       - TZ=America/Chicago
     volumes:
-      - /mnt/p2p/config/sabnzbd:/config
-      - /mnt/p2p/apps/sabnzbd/downloads:/downloads
-      - /mnt/p2p/apps/sabnzbd/incomplete:/incomplete
-      - /mnt/p2p/movies:/movies
-      - /mnt/p2p/documents:/documents
+      - ${HOST_MEDIA_BASE}/config/sabnzbd:/config
+      - ${HOST_MEDIA_BASE}/apps/sabnzbd/downloads:/downloads
+      - ${HOST_MEDIA_BASE}/apps/sabnzbd/incomplete:/incomplete
+      - ${HOST_MEDIA_BASE}/movies:/movies
+      - ${HOST_MEDIA_BASE}/documents:/documents
     restart: unless-stopped
