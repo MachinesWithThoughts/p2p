@@ -1,34 +1,37 @@
 version: "3.9"
 
-services:
-  sonarr:
-    image: lscr.io/linuxserver/sonarr:latest
-    container_name: sonarr
-    ports:
-      - 8989:8989
-    environment:
-      - PUID=2000
-      - PGID=2000
-      - TZ=America/Chicago
-    volumes:
-      - ${HOST_MEDIA_BASE}/config/sonarr:/config
-      - ${HOST_MEDIA_BASE}/apps/sabnzbd/downloads:/downloads
-      - ${HOST_MEDIA_BASE}/tv2:/tv
-    restart: unless-stopped
+volumes:
+  media-data:
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NAS_IP},nfsvers=3,rw"
+      device: ":/mnt/md0/p2p"
 
+services:
   sabnzbd:
     image: lscr.io/linuxserver/sabnzbd:latest
     container_name: sabnzbd
-    ports:
-      - 8080:8080
     environment:
       - PUID=2000
       - PGID=2000
       - TZ=America/Chicago
     volumes:
-      - ${HOST_MEDIA_BASE}/config/sabnzbd:/config
-      - ${HOST_MEDIA_BASE}/apps/sabnzbd/downloads:/downloads
-      - ${HOST_MEDIA_BASE}/apps/sabnzbd/incomplete:/incomplete
-      - ${HOST_MEDIA_BASE}/movies:/movies
-      - ${HOST_MEDIA_BASE}/documents:/documents
+      - media-data:/mnt/p2p
+    working_dir: /mnt/p2p
+    ports:
+      - 8080:8080
+    restart: unless-stopped
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      - PUID=2000
+      - PGID=2000
+      - TZ=America/Chicago
+    volumes:
+      - media-data:/mnt/p2p
+    working_dir: /mnt/p2p
+    ports:
+      - 8989:8989
     restart: unless-stopped
