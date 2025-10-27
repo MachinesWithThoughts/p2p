@@ -30,6 +30,7 @@ services:
       - TZ=America/Chicago
     volumes:
       - sabnzbd-data:/config
+      - p2p-data:/mnt/p2p
     depends_on:
       - nfs-mounter
     ports:
@@ -44,7 +45,8 @@ services:
       - PGID=2000
       - TZ=America/Chicago
     volumes:
-      - sonarr-data:/mnt/p2p
+      - sonarr-data:/config
+      - p2p-data:/mnt/p2p
     depends_on:
       - nfs-mounter
     ports:
