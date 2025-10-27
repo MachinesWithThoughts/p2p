@@ -1,30 +1,23 @@
-# 🧩 Home Media Server Runbook (with NFS-Mounter Integration)
+# 🧩 Home Media Server Runbook (SABnzbd /config Mount)
 
 ## Overview
-This setup adds a dedicated `nfs-mounter` container to mount and maintain all NFS shares before starting SABnzbd and Sonarr.
+This version updates SABnzbd to mount its NFS share directly to `/config` for proper compatibility
+with the LinuxServer.io image. All downloads, logs, and admin data reside there.
 
-### NFS-Mounter Tasks
-- Mounts `/mnt/md0/p2p`, `/mnt/md0/p2p_sabnzbd`, and `/mnt/md0/p2p_sonarr`
-- Verifies mounts are active
-- Keeps mounts persistent with `tail -f /dev/null`
+### Mount summary
+| Container | NAS Path | Mounted At |
+|------------|-----------|-------------|
+| nfs-mounter | /mnt/md0/p2p_sabnzbd | /mnt/p2p_sabnzbd |
+| sabnzbd | /mnt/md0/p2p_sabnzbd | /config |
+| sonarr | /mnt/md0/p2p_sonarr | /mnt/p2p |
 
-### Usage
+---
+
+## Restart Procedure
 ```bash
-./scripts/startup-macos.sh
+docker compose up -d --force-recreate sabnzbd
 ```
-- Verifies NFS exports on NAS
-- Starts `nfs-mounter`
-- Waits for mounts
-- Starts app containers (SABnzbd, Sonarr)
-
-Check mounts:
+To verify:
 ```bash
-docker exec -it nfs-mounter mount | grep /mnt
-```
-
-Expected output:
-```
-192.168.1.52:/mnt/md0/p2p_sabnzbd on /mnt/p2p_sabnzbd type nfs ...
-192.168.1.52:/mnt/md0/p2p_sonarr on /mnt/p2p_sonarr type nfs ...
-192.168.1.52:/mnt/md0/p2p on /mnt/p2p type nfs ...
+docker exec -it sabnzbd ls /config
 ```
