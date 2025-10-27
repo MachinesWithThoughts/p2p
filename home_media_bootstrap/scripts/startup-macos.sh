@@ -4,36 +4,40 @@ BASE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DOCKER_DIR="$BASE_DIR/docker"
 ENV_FILE="$DOCKER_DIR/.env.macos"
 
-echo "🚀 Starting Docker stack (NFS volume mode using static NAS IP)..."
+echo "🚀 Starting Docker stack (NFS mounter integration)..."
 
-# Ensure Docker Desktop is running
 if ! pgrep -f Docker >/dev/null; then
   echo "🐳 Launching Docker Desktop..."
   open -a Docker
 fi
 
-# Wait for Docker daemon readiness
 echo "⏳ Waiting for Docker daemon to become responsive..."
 until docker info >/dev/null 2>&1; do
   sleep 2
 done
 echo "✅ Docker daemon is responding."
 
-# Test Docker API availability
-echo "🔍 Verifying Docker image pull API..."
-until docker pull busybox:latest >/dev/null 2>&1; do
-  echo "   Waiting for Docker API to accept image pulls..."
-  sleep 3
-done
-echo "✅ Docker image pull works."
+# Preflight NFS check
+source "$ENV_FILE"
+echo "🔍 Checking NFS exports on ${NAS_IP}..."
+if ! showmount -e ${NAS_IP} >/dev/null 2>&1; then
+  echo "❌ Cannot reach NAS at ${NAS_IP}. Exiting."
+  exit 1
+fi
+echo "✅ NAS exports are reachable."
 
-# Always refresh environment file
 echo "🔧 Refreshing environment file..."
 cp "$ENV_FILE" "$DOCKER_DIR/.env"
 
-# Start the stack
 cd "$DOCKER_DIR"
-echo "🚀 Launching containers with NFS volume mount (static IP)..."
-docker compose up -d --remove-orphans
+echo "🚀 Launching NFS mounter first..."
+docker compose up -d nfs-mounter
+
+echo "⏳ Waiting for NFS mounter to complete setup..."
+sleep 8
+docker logs nfs-mounter || true
+
+echo "🚀 Launching SABnzbd and Sonarr..."
+docker compose up -d sabnzbd sonarr
 docker compose ps
-echo "✅ Docker stack started successfully."
+echo "✅ Docker stack started successfully with nfs-mounter."

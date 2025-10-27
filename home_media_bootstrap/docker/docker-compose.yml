@@ -1,13 +1,26 @@
 version: "3.9"
 
-volumes:
-  media-data:
-    driver_opts:
-      type: "nfs"
-      o: "addr=${NAS_IP},nfsvers=3,rw"
-      device: ":/mnt/md0/p2p"
-
 services:
+  nfs-mounter:
+    image: alpine:latest
+    container_name: nfs-mounter
+    privileged: true
+    restart: unless-stopped
+    environment:
+      - NAS_IP=${NAS_IP}
+    command: >
+      sh -c "
+        apk add --no-cache nfs-utils &&
+        mkdir -p /mnt/p2p /mnt/p2p_sabnzbd /mnt/p2p_sonarr &&
+        mount -t nfs -o vers=3 ${NAS_IP}:/mnt/md0/p2p /mnt/p2p &&
+        mount -t nfs -o vers=3 ${NAS_IP}:/mnt/md0/p2p_sabnzbd /mnt/p2p_sabnzbd &&
+        mount -t nfs -o vers=3 ${NAS_IP}:/mnt/md0/p2p_sonarr /mnt/p2p_sonarr &&
+        echo '✅ All NFS shares mounted successfully.' &&
+        tail -f /dev/null
+      "
+    networks:
+      - default
+
   sabnzbd:
     image: lscr.io/linuxserver/sabnzbd:latest
     container_name: sabnzbd
@@ -16,8 +29,9 @@ services:
       - PGID=2000
       - TZ=America/Chicago
     volumes:
-      - media-data:/mnt/p2p
-    working_dir: /mnt/p2p
+      - sabnzbd-data:/mnt/p2p
+    depends_on:
+      - nfs-mounter
     ports:
       - 8080:8080
     restart: unless-stopped
@@ -30,8 +44,26 @@ services:
       - PGID=2000
       - TZ=America/Chicago
     volumes:
-      - media-data:/mnt/p2p
-    working_dir: /mnt/p2p
+      - sonarr-data:/mnt/p2p
+    depends_on:
+      - nfs-mounter
     ports:
       - 8989:8989
     restart: unless-stopped
+
+volumes:
+  sabnzbd-data:
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NAS_IP},nfsvers=3,rw"
+      device: ":/mnt/md0/p2p_sabnzbd"
+  sonarr-data:
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NAS_IP},nfsvers=3,rw"
+      device: ":/mnt/md0/p2p_sonarr"
+  p2p-data:
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NAS_IP},nfsvers=3,rw"
+      device: ":/mnt/md0/p2p"

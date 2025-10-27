@@ -1,50 +1,30 @@
-# 🧩 Home Media Server Runbook (Static IP NFS Volume + Auto .env Refresh)
+# 🧩 Home Media Server Runbook (with NFS-Mounter Integration)
 
-## 🗺️ Overview
-Fully automated, portable Docker stack that mounts NAS directly using NFS via static IP (192.168.1.52).
-Each startup regenerates the `.env` file automatically, ensuring correct configuration every time.
+## Overview
+This setup adds a dedicated `nfs-mounter` container to mount and maintain all NFS shares before starting SABnzbd and Sonarr.
 
----
+### NFS-Mounter Tasks
+- Mounts `/mnt/md0/p2p`, `/mnt/md0/p2p_sabnzbd`, and `/mnt/md0/p2p_sonarr`
+- Verifies mounts are active
+- Keeps mounts persistent with `tail -f /dev/null`
 
-# ⚙️ Configuration
-
-### `.env` Auto-Generated Each Startup
-```bash
-NAS_IP=192.168.1.52
-HOST_MEDIA_BASE=/mnt/p2p
-```
-
-### NFS on NAS
-Ensure `/etc/exports` includes:
-```bash
-/mnt/md0/p2p *(rw,sync,no_root_squash,no_subtree_check)
-```
-Restart NFS:
-```bash
-systemctl restart nfs-server
-```
-
----
-
-# 🍎 macOS / 🐧 Linux / 🪟 WSL2
-
-## Regular Tasks
+### Usage
 ```bash
 ./scripts/startup-macos.sh
-./scripts/shutdown-macos.sh
+```
+- Verifies NFS exports on NAS
+- Starts `nfs-mounter`
+- Waits for mounts
+- Starts app containers (SABnzbd, Sonarr)
+
+Check mounts:
+```bash
+docker exec -it nfs-mounter mount | grep /mnt
 ```
 
-### Behavior
-- Ensures Docker Desktop is running
-- Waits for daemon readiness
-- Pulls test image to confirm API
-- Refreshes `.env` file every time
-- Starts NFS-mounted containers via static IP
-
----
-
-# ✅ Summary
-- Portable across all platforms
-- Headless & self-healing startup
-- No stale environment issues
-- Fully automated `.env` refresh
+Expected output:
+```
+192.168.1.52:/mnt/md0/p2p_sabnzbd on /mnt/p2p_sabnzbd type nfs ...
+192.168.1.52:/mnt/md0/p2p_sonarr on /mnt/p2p_sonarr type nfs ...
+192.168.1.52:/mnt/md0/p2p on /mnt/p2p type nfs ...
+```
