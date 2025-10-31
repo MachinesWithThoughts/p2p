@@ -53,10 +53,23 @@
       box-shadow: 0 12px 24px var(--hud-shadow);
     }
 
+    .titleGroup {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
     header h1 {
       margin: 0;
       font-size: 1.1rem;
       letter-spacing: 0.2rem;
+      text-transform: uppercase;
+    }
+
+    .versionTag {
+      font-size: 0.65rem;
+      letter-spacing: 0.15rem;
+      color: var(--hud-accent);
       text-transform: uppercase;
     }
 
@@ -202,6 +215,10 @@
         font-size: 0.9rem;
       }
 
+      .versionTag {
+        font-size: 0.55rem;
+      }
+
       .controls {
         width: 100%;
         justify-content: space-between;
@@ -218,7 +235,10 @@
 <body>
   <div id="app">
     <header>
-      <h1>Arcade Maze Chase</h1>
+      <div class="titleGroup">
+        <h1>Arcade Maze Chase</h1>
+        <span class="versionTag">v00.03.00</span>
+      </div>
       <div class="controls">
         <label for="themeSelect">Theme
           <select id="themeSelect">
