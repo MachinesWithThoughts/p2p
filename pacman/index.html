@@ -240,6 +240,11 @@
     const POWER_PELLET_SCORE = 50;
     const GHOST_SCORE_BASE = 200;
     const POWER_DURATION = 6.5;
+    const BOARD_WIDTH = COLS * CELL_SIZE;
+    const BOARD_HEIGHT = ROWS * CELL_SIZE;
+    const TURN_THRESHOLD = CELL_SIZE * 0.35;
+    const SCATTER_DURATION = 7;
+    const CHASE_DURATION = 20;
 
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
@@ -431,19 +436,55 @@
       animation: 0
     };
 
-    const ghosts = ghostStarts.map((start, index) => ({
-      x: start.x,
-      y: start.y,
-      start,
-      dir: { ...start.dir },
-      speed: 75,
-      frightenedSpeed: 55,
-      eatenSpeed: 150,
-      radius: CELL_SIZE * 0.45,
-      state: 'chase',
-      frightenedTimer: 0,
-      colorIndex: index
-    }));
+    const ghostPersonalities = [
+      {
+        scatter: { x: BOARD_WIDTH - CELL_SIZE, y: CELL_SIZE },
+        chase: () => ({ x: pacman.x, y: pacman.y })
+      },
+      {
+        scatter: { x: CELL_SIZE, y: CELL_SIZE },
+        chase: () => ({
+          x: pacman.x + (pacman.dir.x || 0) * CELL_SIZE * 4,
+          y: pacman.y + (pacman.dir.y || 0) * CELL_SIZE * 4
+        })
+      },
+      {
+        scatter: { x: BOARD_WIDTH - CELL_SIZE, y: BOARD_HEIGHT - CELL_SIZE },
+        chase: ghost => ({
+          x: pacman.x + (pacman.dir.x || 0) * CELL_SIZE * 2 - (ghost.start.x - pacmanStart.x),
+          y: pacman.y + (pacman.dir.y || 0) * CELL_SIZE * 2 - (ghost.start.y - pacmanStart.y)
+        })
+      },
+      {
+        scatter: { x: CELL_SIZE, y: BOARD_HEIGHT - CELL_SIZE },
+        chase: ghost => {
+          const distance = Math.hypot(pacman.x - ghost.x, pacman.y - ghost.y);
+          if (distance > CELL_SIZE * 6) {
+            return { x: pacman.x, y: pacman.y };
+          }
+          return ghost.scatterTarget;
+        }
+      }
+    ];
+
+    const ghosts = ghostStarts.map((start, index) => {
+      const personality = ghostPersonalities[index % ghostPersonalities.length];
+      return {
+        x: start.x,
+        y: start.y,
+        start,
+        dir: { ...start.dir },
+        speed: 75,
+        frightenedSpeed: 55,
+        eatenSpeed: 150,
+        radius: CELL_SIZE * 0.45,
+        state: 'chase',
+        frightenedTimer: 0,
+        colorIndex: index,
+        scatterTarget: { ...personality.scatter },
+        chaseTarget: personality.chase
+      };
+    });
 
     let level = createLevel();
     let score = 0;
@@ -456,6 +497,8 @@
     let gameState = 'idle';
     let stateTimer = 0;
     let currentTheme = themes.classic;
+    let ghostMode = 'scatter';
+    let ghostModeTimer = SCATTER_DURATION;
 
     function countPellets() {
       pelletsRemaining = 0;
@@ -478,7 +521,10 @@
         ghost.dir = { ...start.dir };
         ghost.state = 'chase';
         ghost.frightenedTimer = 0;
+        ghost.scatterTarget = { ...ghostPersonalities[index % ghostPersonalities.length].scatter };
       });
+      ghostMode = 'scatter';
+      ghostModeTimer = SCATTER_DURATION;
     }
 
     function restartGame() {
@@ -556,12 +602,29 @@
     }
 
     function updatePacman(delta) {
+      isCentered(pacman);
+
       if (pacman.pendingDir) {
-        const cellX = Math.floor(pacman.x / CELL_SIZE);
-        const cellY = Math.floor(pacman.y / CELL_SIZE);
-        if (isCentered(pacman) && !isWall(cellX + pacman.pendingDir.x, cellY + pacman.pendingDir.y)) {
-          pacman.dir = { ...pacman.pendingDir };
+        const desired = pacman.pendingDir;
+        const reversing =
+          pacman.dir && pacman.dir.x === -desired.x && pacman.dir.y === -desired.y;
+        if (!pacman.dir || (pacman.dir.x === 0 && pacman.dir.y === 0) || reversing) {
+          pacman.dir = { ...desired };
           pacman.pendingDir = null;
+        } else {
+          const cellX = Math.floor(pacman.x / CELL_SIZE);
+          const cellY = Math.floor(pacman.y / CELL_SIZE);
+          const centerX = cellX * CELL_SIZE + HALF;
+          const centerY = cellY * CELL_SIZE + HALF;
+          const aligned =
+            Math.abs(pacman.x - centerX) <= TURN_THRESHOLD &&
+            Math.abs(pacman.y - centerY) <= TURN_THRESHOLD;
+          if (aligned && !isWall(cellX + desired.x, cellY + desired.y)) {
+            pacman.x = centerX;
+            pacman.y = centerY;
+            pacman.dir = { ...desired };
+            pacman.pendingDir = null;
+          }
         }
       }
 
@@ -626,14 +689,18 @@
 
     function chooseDirection(ghost, options) {
       let target;
-      if (ghost.state === 'eaten') {
-        target = { x: ghost.start.x, y: ghost.start.y };
-      } else {
-        target = { x: pacman.x, y: pacman.y };
-      }
-
       if (ghost.state === 'frightened') {
         return options[Math.floor(Math.random() * options.length)];
+      }
+
+      if (ghost.state === 'eaten') {
+        target = { x: ghost.start.x, y: ghost.start.y };
+      } else if (ghostMode === 'scatter') {
+        target = ghost.scatterTarget;
+      } else if (ghost.chaseTarget) {
+        target = ghost.chaseTarget(ghost);
+      } else {
+        target = { x: pacman.x, y: pacman.y };
       }
 
       let best = options[0];
@@ -657,12 +724,21 @@
 
       if (isCentered(ghost)) {
         const options = [];
+        let reverseOption = null;
         directions.forEach(dir => {
-          if (ghost.dir && dir.x === -ghost.dir.x && dir.y === -ghost.dir.y) return;
+          const isReverse = ghost.dir && dir.x === -ghost.dir.x && dir.y === -ghost.dir.y;
+          if (isReverse) {
+            reverseOption = dir;
+          }
           if (!isWall(cellX + dir.x, cellY + dir.y)) {
-            options.push(dir);
+            if (!isReverse) {
+              options.push(dir);
+            }
           }
         });
+        if (!options.length && reverseOption && !isWall(cellX + reverseOption.x, cellY + reverseOption.y)) {
+          options.push(reverseOption);
+        }
         if (options.length) {
           ghost.dir = chooseDirection(ghost, options);
         }
@@ -676,6 +752,10 @@
       if (!collidesWithWall(nextX, nextY, ghost.radius * 0.9)) {
         ghost.x = nextX;
         ghost.y = nextY;
+      } else {
+        ghost.x = cellX * CELL_SIZE + HALF;
+        ghost.y = cellY * CELL_SIZE + HALF;
+        ghost.dir = null;
       }
 
       wrapEntity(ghost);
@@ -696,6 +776,22 @@
           ghost.state = 'chase';
           ghost.dir = { x: 0, y: -1 };
         }
+      }
+    }
+
+    function updateGhostMode(delta) {
+      if (gameState !== 'playing') return;
+      if (pacman.powerTimer > 0) return;
+
+      ghostModeTimer -= delta;
+      if (ghostModeTimer <= 0) {
+        ghostMode = ghostMode === 'scatter' ? 'chase' : 'scatter';
+        ghostModeTimer = ghostMode === 'scatter' ? SCATTER_DURATION : CHASE_DURATION;
+        ghosts.forEach(ghost => {
+          if (ghost.state === 'chase' && ghost.dir) {
+            ghost.dir = { x: -ghost.dir.x, y: -ghost.dir.y };
+          }
+        });
       }
     }
 
@@ -991,6 +1087,7 @@
       }
 
       updatePacman(delta);
+      updateGhostMode(delta);
       ghosts.forEach(ghost => updateGhost(ghost, delta));
       handleCollisions();
 
@@ -1051,10 +1148,16 @@
       }
 
       if (!dir) return;
-      if (!pacman.dir || (pacman.dir.x === 0 && pacman.dir.y === 0)) {
-        pacman.dir = dir;
-      } else {
-        pacman.pendingDir = dir;
+
+      pacman.pendingDir = { ...dir };
+      const canApplyImmediately =
+        !pacman.dir ||
+        (pacman.dir.x === 0 && pacman.dir.y === 0) ||
+        (pacman.dir.x === -dir.x && pacman.dir.y === -dir.y);
+
+      if (canApplyImmediately) {
+        pacman.dir = { ...dir };
+        pacman.pendingDir = null;
       }
     }
 
