@@ -1138,15 +1138,23 @@
     function updateGame(delta) {
       if (gameState === 'idle') return;
 
-      if (gameState === 'ready' || gameState === 'dead') {
+      if (gameState === 'ready') {
         stateTimer -= delta;
         if (stateTimer <= 0) {
-          if (gameState === 'dead' && lives <= 0) {
+          gameState = lives <= 0 ? 'gameOver' : 'playing';
+        }
+        return;
+      }
+
+      if (gameState === 'dead') {
+        stateTimer -= delta;
+        if (stateTimer <= 0) {
+          if (lives <= 0) {
             gameState = 'gameOver';
           } else {
             resetCharacters();
             ghostChain = 0;
-            gameState = lives <= 0 ? 'gameOver' : 'playing';
+            gameState = 'playing';
           }
         }
         return;
